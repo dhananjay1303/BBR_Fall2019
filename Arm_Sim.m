@@ -35,18 +35,33 @@ qe_plus = deg2rad(150);
 qe_minus = deg2rad(0);
 qh_plus = deg2rad(90);
 qh_minus = deg2rad(-75);
+
+%Define target "comfortable" position for each joint
 qstar = 0.5*[qs_plus+qs_minus;qe_plus+qe_minus;qh_plus+qh_minus];
 
 %% State Definition
 
 %Initial joint angle vector
-q0 = deg2rad([0;120;75]);
-qs0 = q0(1); qe0 = q0(2); qh0 = q0(3);
+qs0 = deg2rad(0);
+qe0 = deg2rad(120);
+qh0 = deg2rad(75);
+q0 = [qs0;qe0;qh0];
+
+x0 = ls*cos(qs0) + le*cos(qs0+qe0) + lh*cos(qs0+qe0+qh0);
+y0 = ls*sin(qs0) + le*sin(qs0+qe0) + lh*sin(qs0+qe0+qh0);
 
 count = 0;
+
 figure(1)
+
+%Calculate desired trajectory
+[~, XY] = ode45(@v, [0 1], [x0;y0]);
+plot(XY(:,1),XY(:,2),'k','Linewidth',2)
+drawnow
 hold on
-[TOUT, POSITION] = ode45(@qdot, [0 1], q0); %solve for end point over time
+
+%Calculate actual trajectory
+[~, JOINTSPACE] = ode45(@qdot, [0 1], q0); %solve for end point over time
 
 %% Inertial Model
 
@@ -87,7 +102,7 @@ Jacobian(2,3) = lh*cos(qs+qe+qh);
 
 end
 
-%% Cost Function and its derivative
+%% Cost Function Derivative
 
 function delV = grad_V(q)
 
@@ -97,48 +112,60 @@ delV = 2*[x-qstar(1);y-qstar(2);z-qstar(3)];
 
 end
 
-function cost = V(q)
-
-global qstar
-x = q(1); y = q(2); z = q(3);
-cost = (x-qstar(1))^2 + (y - qstar(2))^2 + (z - qstar(3))^2;
-
-end
-
 %% State Propagation Function
 
 function q_dot_star = qdot(t,q)
 
-global count
-T = 1; %duration of movement
-A = 0.4; %amplitude of movement
+    global count
+    T = 1; %duration of movement
+    A = 0.5; %amplitude of movement
 
-%Bell shaped velocity profile
-velocity = ((t/T)^2 - 2*(t/T) + 1)*30*A*(t/T)^2/T;
-xydot = velocity*[cosd(20);sind(20)];
+    %Bell shaped velocity profile
+    velocity = ((t/T)^2 - 2*(t/T) + 1)*30*A*(t/T)^2/T;
+    xydot = velocity*[cosd(20);sind(20)];
 
-%Minimization parameters for kinetic energy
-JT = transpose(J(q));
-M = massMat(q);
-M_inv = inv(M);
+    %Minimization parameters for kinetic energy
+    JT = transpose(J(q));
+    M = massMat(q);
+    M_inv = inv(M);
 
-J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT));
-q_dot_star = J_pseudo*xydot;
+    J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT));
+    q_dot_star = J_pseudo*xydot;
 
-%Steepest descent optimization to avoid uncomfortable positions
-X = 0.5; %calculated by hand
-n = -grad_V(q)/norm(grad_V(q));
-delta_q_dot = -X*dot(grad_V(q),n)*n;
-q_dot_star = q_dot_star + delta_q_dot;
+% Steepest descent optimization to avoid uncomfortable positions
+    X = 1; %arbitrary, determines the rate of convergence 
+    n = -grad_V(q)/norm(grad_V(q));
 
-if count ==4
-    plotArm(q)
-    count = 0;
-    pause
-else
-    count = count +1;
+    %Projection of n onto the null space of J
+    NS = null(J(q));
+    n_null = (dot(n,NS))*NS/norm(NS);
+
+    %Optimization contribution of joint space
+    delta_q_dot = -X*dot(grad_V(q),n)*n_null;
+
+    %Combining minimization term with optimization term
+    q_dot_star = q_dot_star + delta_q_dot;
+
+    %Only plot every 4th position
+    if count ==4
+        plotArm(q)
+        count = 0;
+    else
+        count = count +1;
+    end
 end
 
+%% Velocity Profile Function
+
+function xydot = v(t,~)
+    T = 1;
+    A = 0.5;
+
+    %Bell shaped velocity profile
+    velocity = ((t/T)^2 - 2*(t/T) + 1)*30*A*(t/T)^2/T;
+    
+    %Arbitrarily chosen direction
+    xydot = velocity*[cosd(20);sind(20)];
 end
 
 %% Plotting Arm Position
