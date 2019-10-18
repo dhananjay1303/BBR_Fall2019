@@ -6,7 +6,7 @@ close all
 %Subscript e refers to elbow
 %Subscript h refers to hand
 
-global ms me mh ls le lh lms lme lmh Is Ie Ih qstar count
+global ms me mh ls le lh lms lme lmh Is Ie Ih qstar count bigCount
 
 %masses of arm segments (kg)
 ms = 1.93;
@@ -52,12 +52,13 @@ x0 = ls*cos(qs0) + le*cos(qs0+qe0) + lh*cos(qs0+qe0+qh0);
 y0 = ls*sin(qs0) + le*sin(qs0+qe0) + lh*sin(qs0+qe0+qh0);
 
 count = 0;
+bigCount = 0;
 
 figure(1)
 
 %Calculate desired trajectory
 [~, XY] = ode45(@v, [0 1], [x0;y0]);
-plot(XY(:,1),XY(:,2),'k','Linewidth',2)
+plot(XY(:,1),XY(:,2),'b','Linewidth',2)
 drawnow
 hold on
 
@@ -117,9 +118,9 @@ end
 
 function q_dot_star = qdot(t,q)
 
-    global count
+    global count bigCount
     T = 1; %duration of movement
-    A = 0.5; %amplitude of movement
+    A = 0.55; %amplitude of movement
 
     %Bell shaped velocity profile
     velocity = ((t/T)^2 - 2*(t/T) + 1)*30*A*(t/T)^2/T;
@@ -130,11 +131,12 @@ function q_dot_star = qdot(t,q)
     M = massMat(q);
     M_inv = inv(M);
 
-    J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT));
+    J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT)); % minimize kinetic energy
+    %J_pseudo = JT/(J(q)*JT);                   % minimize velocity
     q_dot_star = J_pseudo*xydot;
 
 % Steepest descent optimization to avoid uncomfortable positions
-    X = 1; %arbitrary, determines the rate of convergence 
+    X = 1.8; %arbitrary, determines the rate of convergence 
     n = -grad_V(q)/norm(grad_V(q));
 
     %Projection of n onto the null space of J
@@ -142,7 +144,7 @@ function q_dot_star = qdot(t,q)
     n_null = (dot(n,NS))*NS/norm(NS);
 
     %Optimization contribution of joint space
-    delta_q_dot = -X*dot(grad_V(q),n)*n_null;
+    delta_q_dot = -X*dot(grad_V(q),n_null)*n_null;
 
     %Combining minimization term with optimization term
     q_dot_star = q_dot_star + delta_q_dot;
@@ -154,13 +156,18 @@ function q_dot_star = qdot(t,q)
     else
         count = count +1;
     end
+    
+    bigCount = bigCount + 1;
+    if bigCount > 100
+        assert(false)
+    end
 end
 
 %% Velocity Profile Function
 
 function xydot = v(t,~)
     T = 1;
-    A = 0.5;
+    A = 0.55;
 
     %Bell shaped velocity profile
     velocity = ((t/T)^2 - 2*(t/T) + 1)*30*A*(t/T)^2/T;
@@ -173,7 +180,7 @@ end
 
 function plotArm(q)
 
-global ls le lh
+global ls le lh bigCount
 qs = q(1); qe = q(2); qh = q(3);
 
 %shoulder position
@@ -192,5 +199,5 @@ yh = ls*sin(qs) + le*sin(qs+qe);
 x = ls*cos(qs) + le*cos(qs+qe) + lh*cos(qs+qe+qh);
 y = ls*sin(qs) + le*sin(qs+qe) + lh*sin(qs+qe+qh);
 
-plot([xs xe xh x],[ys ye yh y])
+plot([xs xe xh x],[ys ye yh y],'color',[1 1 1].*max(0.7-bigCount/100,0))
 end
