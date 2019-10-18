@@ -47,6 +47,7 @@ qe0 = deg2rad(120);
 qh0 = deg2rad(75);
 q0 = [qs0;qe0;qh0];
 
+
 x0 = ls*cos(qs0) + le*cos(qs0+qe0) + lh*cos(qs0+qe0+qh0);
 y0 = ls*sin(qs0) + le*sin(qs0+qe0) + lh*sin(qs0+qe0+qh0);
 
