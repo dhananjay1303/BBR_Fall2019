@@ -130,12 +130,12 @@ function q_dot_star = qdot(t,q)
     M = massMat(q);
     M_inv = inv(M);
 
-    %J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT)); % minimize kinetic energy
-    J_pseudo = JT/(J(q)*JT);                   % minimize velocity
+    J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT)); % minimize kinetic energy
+    %J_pseudo = JT/(J(q)*JT);                   % minimize velocity
     q_dot_star = J_pseudo*xydot;
 
 % Steepest descent optimization to avoid uncomfortable positions
-    X = 0; %arbitrary, determines the rate of convergence 
+    X = 1.8; %arbitrary, determines the rate of convergence 
     n = -grad_V(q)/norm(grad_V(q));
 
     %Projection of n onto the null space of J
