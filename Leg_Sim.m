@@ -1,13 +1,29 @@
 clear
 close all
 
+%% Import Experimental Data
+load('FootPlacement.mat')
+Xf = fit(time_x-time_x(1), X,'poly8');
+Zf = fit(time_z-time_z(1), Z,'poly4');
+
+%Create ppolynomials
+global PX_dot PZ_dot PX_double_dot PZ_double_dot PX_triple_dot PZ_triple_dot
+PX = [Xf.p1 Xf.p2 Xf.p3 Xf.p4 Xf.p5 Xf.p6 Xf.p7 Xf.p8 Xf.p9];
+PZ = [Zf.p1 Zf.p2 Zf.p3 Zf.p4 Zf.p5];
+PX_dot = polyder(PX);
+PZ_dot = polyder(PZ);
+PX_double_dot = polyder(PX_dot);
+PZ_double_dot = polyder(PZ_dot);
+PX_triple_dot = polyder(PX_double_dot);
+PZ_triple_dot = polyder(PZ_double_dot);
+
 %% System Parameter Definitions
 global lh lk la qstar
 
 %Lengths of Leg Sections (not set yet)
-lh = 1; %Upper leg length               (m)
-la = 1; %Lower leg length               (m)
-lk = 1; %Foot length from ankle to cg   (m)
+lh = 0.6; %Upper leg length               (m)
+la = 0.6; %Lower leg length               (m)
+lk = 0.1; %Foot length from ankle to cg   (m)
 
 %Joint Limits for Comfort
 qh_star = deg2rad(00);
@@ -19,6 +35,11 @@ q_star = [qh_star;qk_star;qa_star];
 qh_0 = deg2rad( 10);
 qk_0 = deg2rad(-10);
 qa_0 = deg2rad(110);
+
+%Comfortable Leg Positions
+qstar = deg2rad([0;10;90]);
+
+%% Functions
 
 function J = Jacobian(q)
     qh = q(1); qk = q(2); qa = q(3);
@@ -34,30 +55,30 @@ function J = Jacobian(q)
     J(2,3) = -la*sin(qh-qk+qa);
 end
 
-function xy_dot = cartesian_deriv(t,~)
-    %curve-fit
-    xy_dot = t;
-end
-
 function grad_V = cost_deriv(q)
+
     global qstar
-    %TBD
+    x = q(1); y = q(2); z = q(3);
+    grad_V = 2*[x-qstar(1);y-qstar(2);z-qstar(3)];
+    
 end
 
 function q_dot = state_deriv(t,q)
     
-    T = 1; %Duration of movement
+    global PX_dot PZ_dot PX_double_dot PZ_double_dot PX_triple_dot PZ_triple_dot
     
     %Determine velocity of end point
-    xy_dot = cartesian_deriv(t,1);
+    xz_dot = [polyval(PX_dot,t); polyval(PZ_dot,t)];
+    xz_double_dot = [polyval(PX_double_dot,t); polyval(PZ_double_dot,t)];
+    xz_triple_dot = [polyval(PX_triple_dot,t); polyval(PZ_triple_dot,t)];
 
     %Calculate pseudo inverse of J to find angular rates
     J = Jacobian(q);
     JT = transpose(J);
-    J_pseudo = TJ/(J*JT); %placeholder, this minimizes joint velocity
+    JJT_inv = inv(J*JT);
+    JTJ_inv = inv(JT*J);
     
-    %Calculate q_dot using pseudo inverse of J
-    q_dot_1 = J_pseudo*xy_dot;
+    %calculate q triple dot
     
     %Optimize to avoid uncomfortable joint positions
     X = 1; %Rate of convergence
