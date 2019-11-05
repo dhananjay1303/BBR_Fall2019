@@ -18,7 +18,9 @@ PX_triple_dot = polyder(PX_double_dot);
 PZ_triple_dot = polyder(PZ_double_dot);
 
 %% System Parameter Definitions
-global lh lk la qstar
+global lh lk la qstar q_dot_vec t_vec
+
+q_dot_vec = [];
 
 %Lengths of Leg Sections (not set yet)
 lh = 0.6; %Upper leg length               (m)
@@ -55,17 +57,27 @@ function J = Jacobian(q)
     J(2,3) = -la*sin(qh-qk+qa);
 end
 
-function grad_V = cost_deriv(q)
-
-    global qstar
-    x = q(1); y = q(2); z = q(3);
-    grad_V = 2*[x-qstar(1);y-qstar(2);z-qstar(3)];
-    
-end
-
 function q_dot = state_deriv(t,q)
     
-    global PX_dot PZ_dot PX_double_dot PZ_double_dot PX_triple_dot PZ_triple_dot
+    global PX_dot PZ_dot PX_double_dot PZ_double_dot PX_triple_dot PZ_triple_dot q_dot_vec
+    
+    if length(q_dot_vec) < 4
+        jerk = [0;0;0]; %not enough points to approximate jerk yet
+    else
+        T4 = t_vec(end-3:end); %extract last 4 time points
+        
+        %-- Fit last 4 q_dot points to a polynomial --%
+        q_dot_hip = fit(T4,q_dot_vec(1,end-3:end),'poly3');
+        q_dot_knee = fit(T4,q_dot_vec(2,end-3:end),'poly3');
+        q_dot_ankle = fit(T4,q_dot_vec(3,end-3:end),'poly3');
+        
+        %-- Find the second derivatives to get jerk --%
+        [~, jerk_hip] = differentiate(q_dot_hip,T4);
+        [~, jerk_knee] = differentiate(q_dot_knee,T4);
+        [~, jerk_ankle] = differentiate(q_dot_ankle,T4);
+        
+        jerk = [jerk_hip;jerk_knee;jerk_ankle];
+    end
     
     %Determine velocity of end point
     xz_dot = [polyval(PX_dot,t); polyval(PZ_dot,t)];
@@ -76,20 +88,15 @@ function q_dot = state_deriv(t,q)
     J = Jacobian(q);
     JT = transpose(J);
     JJT_inv = inv(J*JT);
-    JTJ_inv = inv(JT*J);
     
     %calculate q triple dot
     
-    %Optimize to avoid uncomfortable joint positions
+    %-- Optimize to avoid uncomfortable joint positions --%
     X = 1; %Rate of convergence
-    n = -cost_deriv(q)/norm(cost_deriv(q));
     
     %Project solution onto null space
-    NS = null(J);
-    n_null = (dot(n,NS))*NS/norm(NS);
-    
-    %Scale null space projection
-    q_dot_null = -X*dot(cost_deriv(q),n_null)*n_null;
+    n_null = null(J);
+    q_dot_null = -X*dot(jerk/norm(jerk), n_null)*n_null;
     
     %Determine the final q_dot solution
     q_dot = q_dot_1 + q_dot_null;
