@@ -42,9 +42,9 @@ qstar = 0.5*[qs_plus+qs_minus;qe_plus+qe_minus;qh_plus+qh_minus];
 %% State Definition
 
 %Initial joint angle vector
-qs0 = deg2rad(0);
-qe0 = deg2rad(120);
-qh0 = deg2rad(75);
+qs0 = deg2rad(0); %0
+qe0 = deg2rad(120); %120
+qh0 = deg2rad(75); %75
 q0 = [qs0;qe0;qh0];
 
 
@@ -118,14 +118,14 @@ end
 
 function q_dot_star = qdot(t,q)
 
-    global count bigCount
+    global count bigCount Xf Zf
     T = 1; %duration of movement
     A = 0.55; %amplitude of movement
 
     %Bell shaped velocity profile
     velocity = ((t/T)^2 - 2*(t/T) + 1)*30*A*(t/T)^2/T;
     xydot = velocity*[cosd(20);sind(20)];
-
+    
     %Minimization parameters for kinetic energy
     JT = transpose(J(q));
     M = massMat(q);
