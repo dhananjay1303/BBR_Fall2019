@@ -10,10 +10,6 @@ Zf = fit(timez, 0.8*(z/100),'smoothingspline');
 %% System Parameter Definitions
 global lh lk la lmh lmk lma Ih Ik Ia Mh Mk Ma qstar count bigCount
 
-T_vel = [];
-q_dot_vel = [];
-q_dot_KE  = [];
-
 %Lengths of Leg Sections (meters)
 lh = 0.424; %Upper leg length               
 lk = 0.425; %Lower leg length               
@@ -56,51 +52,67 @@ t = 0:0.001:timex(end);
 count = 4;
 bigCount = 0;
 
-for i = [1 3]
-    figure(i)
-    hold on
-end
-
+% Run ODE solver for desired trajectory
 [TOUT_END, ENDPOINT] = ode45(@v, [0 timex(end)], [x0;z0]);
-figure(1)
-plot(ENDPOINT(:,1),ENDPOINT(:,2))
-%plot(Xf(timex),Zf(timex))
-drawnow
+
+%% Minimum Joint Velocity Squared
 
 [TOUT_JOINT_VEL, JOINTSPACE_VEL] = ode45(@state_deriv_vel,[0 timex(end)],[qh_0;qk_0;qa_0]);
+
 figure(1)
+plot(ENDPOINT(:,1),ENDPOINT(:,2)) %Plot desired trajectory
+drawnow
+hold on
+
 for i = 1:length(TOUT_JOINT_VEL)
-    plotLeg(JOINTSPACE_VEL(i,:))
+    plotLeg(JOINTSPACE_VEL(i,:))  %Plot leg position over time
+    if i > 1
+        pause(TOUT_JOINT_VEL(i) - TOUT_JOINT_VEL(i-1))
+    end
 end
 
-figure(3)
-plot(ENDPOINT(:,1),ENDPOINT(:,2))
-%drawnow
+%% Minimum Kinetic Energy
 
 [TOUT_JOINT_KE, JOINTSPACE_KE] = ode45(@state_deriv_KE,[0 timex(end)],[qh_0;qk_0;qa_0]);
-%ode45(@state_deriv,[0 timex(end)],[qh_0;qk_0;qa_0]);
-figure(3)
-for i = 1:length(TOUT_JOINT_KE)
-    plotLeg(JOINTSPACE_KE(i,:))
+
+figure(2)
+plot(ENDPOINT(:,1),ENDPOINT(:,2)) %Plot desired trajectory
+drawnow limitrate
+hold on
+
+for i = 1:2:length(TOUT_JOINT_KE)
+    plotLeg(JOINTSPACE_KE(i,:))   %Plot leg position over time
+    if i > 1
+        pause(TOUT_JOINT_KE(i) - TOUT_JOINT_KE(i-1))
+    end
 end
 
+%% Joint Velcotiy Plot (both cases)
+
 q_dot_vel = zeros(3,length(TOUT_JOINT_VEL));
+q_dot_KE = zeros(3,length(TOUT_JOINT_KE));
 
 for i = 1:length(TOUT_JOINT_VEL)
+    %Solve for joint velocities in the minimum velcoity case
     q_dot_vel(:,i) = state_deriv_vel(TOUT_JOINT_VEL(i),transpose(JOINTSPACE_VEL(i,:)));
 end
 
-figure(2)
-plot(TOUT_JOINT_VEL,q_dot_vel,'r')
-
-q_dot_KE = zeros(3,length(TOUT_JOINT_KE));
-
 for i = 1:length(TOUT_JOINT_KE)
+    %Solve for joint velocities in the minimum kinetic energy case
     q_dot_KE(:,i) = state_deriv_KE(TOUT_JOINT_KE(i), transpose(JOINTSPACE_KE(i,:)));
 end
-figure(2)
+
+%Plot on the same figure for comparison
+figure(3)
+plot(TOUT_JOINT_VEL,q_dot_vel(1,:),'r--',TOUT_JOINT_VEL,q_dot_vel(2,:),'b--')
 hold on
-plot(TOUT_JOINT_KE, q_dot_KE,'b')
+plot(TOUT_JOINT_KE, q_dot_KE(1,:), 'r', TOUT_JOINT_KE, q_dot_KE(2,:), 'b')
+max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
+xlim([0 max_time])
+plot([0 max_time],[0 0],'k')
+grid on
+
+
 %% Functions
 
 function J = Jacobian(q)
@@ -137,15 +149,17 @@ function massMat = H(q)
     massMat(3,3) = Ia + Ma*lma^2;
 end
 
+%-- Experimental Velocity Data --%
 function velocity = v(t,~)
     global Xf Zf
     
     velocity = [differentiate(Xf,t); differentiate(Zf,t)];
 end
 
+%-- State Derivative: Minimum Joint Velocity --%
 function q_dot = state_deriv_vel(t,q)
     
-    global qstar Xf Zf count bigCount q_dot_vel T_vel
+    global qstar Xf Zf count bigCount
 
     xz_dot = [differentiate(Xf,t);differentiate(Zf,t)];
     
@@ -166,25 +180,12 @@ function q_dot = state_deriv_vel(t,q)
     %Determine the final q_dot solution
     q_dot = q_dot_1 + q_dot_null;
     
-    %Only plot every 4th position
-    if count == 4
-        figure(1)
-        %plotLeg(q)
-        count = 0;
-    else
-        count = count +1;
-    end
-    
-    bigCount = bigCount + 1;
-    if bigCount > 500
-        %assert(false)
-    end
 end
 
-
+%-- State Derivative: Minimum Kinetic Energy --%
 function q_dot = state_deriv_KE(t,q)
     
-    global qstar Xf Zf count bigCount q_dot_KE
+    global qstar Xf Zf
 
     xz_dot = [differentiate(Xf,t);differentiate(Zf,t)];
     
@@ -199,34 +200,25 @@ function q_dot = state_deriv_KE(t,q)
     q_dot_1 = J_pseudo*xz_dot;
     
     %-- Optimize to avoid uncomfortable joint positions --%
-    X = 5; %Rate of convergence
+    if t < 0.3
+        X = 10; %Rate of convergence
+    else
+        X = 0; %Only enforcing cost function in sensitive period of movement
+    end
     
     %Project solution onto null space
     n_null = null(J);
-    q_dot_null = -X*dot((q-qstar)/norm(q-qstar), n_null)*n_null;
+    q_dot_null = -X*dot((q-[q(1);q(2);qstar(3)])/norm(q-[q(1);q(2);qstar(3)]), n_null)*n_null;
     
     %Determine the final q_dot solution
     q_dot = q_dot_1 + q_dot_null;
     
-    %Only plot every 4th position
-    if count == 4
-        figure(3)
-        %plotLeg(q)
-        count = 0;
-    else
-        count = count +1;
-    end
-    
-    bigCount = bigCount + 1;
-    if bigCount > 500
-        %assert(false)
-    end
 end
-%% Plotting Arm Position
 
+%-- Plotting Arm Position --%
 function plotLeg(q)
 
-    global lh lk la bigCount
+    global lh lk la
     qh = q(1); qk = q(2); qa = q(3);
 
     %shoulder position
@@ -245,6 +237,6 @@ function plotLeg(q)
     x = xa + la*sin(qh-qk+qa);
     y = ya - la*cos(qh-qk+qa);
 
-    plot([xh xk xa x],[yh yk ya y],'color',[1 1 1].*max(0.7-bigCount/100,0))
-    %drawnow
+    plot([xh xk xa x],[yh yk ya y],'color',0*[1 1 1])
+    drawnow
 end
