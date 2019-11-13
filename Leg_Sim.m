@@ -104,14 +104,41 @@ end
 
 %Plot on the same figure for comparison
 figure(3)
-plot(TOUT_JOINT_VEL,q_dot_vel(1,:),'r--',TOUT_JOINT_VEL,q_dot_vel(2,:),'b--')
+plot(TOUT_JOINT_VEL,q_dot_vel(1,:).^2 + q_dot_vel(2,:).^2 + q_dot_vel(3,:).^2)
 hold on
-plot(TOUT_JOINT_KE, q_dot_KE(1,:), 'r', TOUT_JOINT_KE, q_dot_KE(2,:), 'b')
+plot(TOUT_JOINT_KE, q_dot_KE(1,:).^2 + q_dot_KE(2,:).^2 + q_dot_KE(3,:).^2)
+max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
+xlim([0 max_time])
+plot([0 max_time],[0 0],'k')
+legend('Vel','KE')
+grid on
+%% Kinetic Energy Plot (both cases)
+
+kinetic_vel = zeros(1,length(TOUT_JOINT_VEL));
+kinetic_KE = zeros(1,length(TOUT_JOINT_KE));
+
+for i = 1:length(TOUT_JOINT_VEL)
+    %Solve for kinetic energy in the minimum joint velocity case
+    q_dot = state_deriv_vel(TOUT_JOINT_VEL(i),transpose(JOINTSPACE_VEL(i,:)));
+    kinetic_vel(i) = (1/2)*transpose(q_dot)*H(JOINTSPACE_VEL(i,:))*q_dot;
+end
+
+for i = 1:length(TOUT_JOINT_KE)
+    %Solve for kinetic energy in the minimum kinetic energy case
+    q_dot = state_deriv_KE(TOUT_JOINT_KE(i), transpose(JOINTSPACE_KE(i,:)));
+    kinetic_KE(i) = (1/2)*transpose(q_dot)*H(JOINTSPACE_KE(i,:))*q_dot;
+end
+
+%Plot on the same figure for comparison
+figure(4)
+plot(TOUT_JOINT_VEL,kinetic_vel,'r--')
+hold on
+plot(TOUT_JOINT_KE, kinetic_KE, 'r')
 max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
 xlim([0 max_time])
 plot([0 max_time],[0 0],'k')
 grid on
-
+legend('Min Velocity','Min KE')
 
 %% Functions
 
