@@ -6,7 +6,7 @@ close all
 %Subscript e refers to elbow
 %Subscript h refers to hand
 
-global ms me mh ls le lh lms lme lmh Is Ie Ih qstar count bigCount
+global ms me mh ls le lh lms lme lmh Is Ie Ih qstar count bigCount RUN
 
 %masses of arm segments (kg)
 ms = 1.93;
@@ -62,8 +62,49 @@ plot(XY(:,1),XY(:,2),'b','Linewidth',2)
 drawnow
 hold on
 
-%Calculate actual trajectory
-[~, JOINTSPACE] = ode45(@qdot, [0 1], q0); %solve for end point over time
+RUN = 1;
+%Calculate minimum joint velocity trajectory
+[TOUT_JV, JOINTSPACE_JV] = ode45(@qdot, [0 1], q0); %solve for end point over time
+
+figure(2)
+plot(XY(:,1),XY(:,2),'b','Linewidth',2)
+drawnow
+hold on
+
+RUN = 2; bigCount = 0; count = 0;
+%Calculate minimum kinetic energy trajectory
+[TOUT_KE, JOINTSPACE_KE] = ode45(@qdot, [0 1], q0); %solve for end point over time
+
+%% Evaluate Performance Indices (Joint Velocity and Kinetic Energy)
+
+n_JV = length(TOUT_JV);
+n_KE = length(TOUT_KE);
+
+RUN = 3;
+q_dot_cost_JV = 0;
+KE_cost_JV = 0;
+for i = 1:length(TOUT_JV)
+    t = TOUT_JV(i);
+    q = JOINTSPACE_JV(i,:)';
+    q_dot_JV = qdot(t,q);
+    q_dot_cost_JV = q_dot_cost_JV + norm(q_dot_JV)^2/n_JV;
+    KE_cost_JV = KE_cost_JV + (1/2)*transpose(q_dot_JV)*massMat(q)*q_dot_JV/n_JV;
+end
+
+RUN = 4;
+q_dot_cost_KE = 0;
+KE_cost_KE = 0;
+for i = 1:length(TOUT_KE)
+    t = TOUT_KE(i);
+    q = JOINTSPACE_KE(i,:)';
+    q_dot_KE = qdot(t,q);
+    q_dot_cost_KE = q_dot_cost_KE + norm(q_dot_KE)^2/n_KE;
+    KE_cost_KE = KE_cost_KE + (1/2)*transpose(q_dot_KE)*massMat(q)*q_dot_KE/n_KE;
+end
+    
+fprintf('\n\t\t\t\t\tMinimum Velocity\tMinimum Kinetic Energy\n')
+fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\n',q_dot_cost_JV,q_dot_cost_KE)
+fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\n',KE_cost_JV,KE_cost_KE)
 
 %% Inertial Model
 
@@ -118,7 +159,7 @@ end
 
 function q_dot_star = qdot(t,q)
 
-    global count bigCount Xf Zf
+    global count bigCount RUN
     T = 1; %duration of movement
     A = 0.55; %amplitude of movement
 
@@ -131,8 +172,12 @@ function q_dot_star = qdot(t,q)
     M = massMat(q);
     M_inv = inv(M);
 
-    J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT)); % minimize kinetic energy
-    %J_pseudo = JT/(J(q)*JT);                   % minimize velocity
+    if RUN == 1 || RUN == 3
+        J_pseudo = JT/(J(q)*JT);                   % minimize velocity
+    else
+        J_pseudo = M_inv*JT*inv((J(q)*M_inv*JT)); % minimize kinetic energy
+    end
+    
     q_dot_star = J_pseudo*xydot;
 
 % Steepest descent optimization to avoid uncomfortable positions
@@ -150,16 +195,18 @@ function q_dot_star = qdot(t,q)
     q_dot_star = q_dot_star + delta_q_dot;
 
     %Only plot every 4th position
-    if count ==4
-        plotArm(q)
-        count = 0;
-    else
-        count = count +1;
-    end
-    
-    bigCount = bigCount + 1;
-    if bigCount > 100
-        assert(false)
+    if RUN == 1 || RUN == 2
+        if count ==4
+            plotArm(q)
+            count = 0;
+        else
+            count = count +1;
+        end
+
+        bigCount = bigCount + 1;
+        if bigCount > 100
+            %assert(false)
+        end
     end
 end
 
