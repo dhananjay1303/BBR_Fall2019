@@ -102,6 +102,9 @@ for i = 1:length(TOUT_JOINT_KE)
     q_dot_KE(:,i) = state_deriv_KE(TOUT_JOINT_KE(i), transpose(JOINTSPACE_KE(i,:)));
 end
 
+q_dot_cost_vel = sum(sum(q_dot_vel.^2))/length(q_dot_vel);
+q_dot_cost_KE  = sum(sum(q_dot_KE .^2))/length(q_dot_KE );
+
 %Plot on the same figure for comparison
 figure(3)
 plot(TOUT_JOINT_VEL,q_dot_vel(1,:).^2 + q_dot_vel(2,:).^2 + q_dot_vel(3,:).^2)
@@ -111,7 +114,10 @@ max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
 xlim([0 max_time])
 plot([0 max_time],[0 0],'k')
 legend('Vel','KE')
+ylabel('Joint Velocity Squared [(°/s)^2]')
+xlabel('Time')
 grid on
+
 %% Kinetic Energy Plot (both cases)
 
 kinetic_vel = zeros(1,length(TOUT_JOINT_VEL));
@@ -139,6 +145,13 @@ xlim([0 max_time])
 plot([0 max_time],[0 0],'k')
 grid on
 legend('Min Velocity','Min KE')
+
+KE_cost_vel = sum(kinetic_vel)/length(kinetic_vel);
+KE_cost_KE  = sum(kinetic_KE )/length(kinetic_KE );
+
+fprintf('\n\t\t\t\t\tMinimum Velocity\tMinimum Kinetic Energy\n')
+fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\t\t\t\t(m/s)\n',q_dot_cost_vel,q_dot_cost_KE)
+fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\t\t\t\t (J)\n',KE_cost_vel,KE_cost_KE)
 
 %% Functions
 
@@ -186,7 +199,7 @@ end
 %-- State Derivative: Minimum Joint Velocity --%
 function q_dot = state_deriv_vel(t,q)
     
-    global qstar Xf Zf count bigCount
+    global qstar Xf Zf
 
     xz_dot = [differentiate(Xf,t);differentiate(Zf,t)];
     
