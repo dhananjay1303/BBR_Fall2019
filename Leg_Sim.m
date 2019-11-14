@@ -150,8 +150,8 @@ KE_cost_vel = sum(kinetic_vel)/length(kinetic_vel);
 KE_cost_KE  = sum(kinetic_KE )/length(kinetic_KE );
 
 fprintf('\n\t\t\t\t\tMinimum Velocity\tMinimum Kinetic Energy\n')
-fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\t\t\t\t(m/s)\n',q_dot_cost_vel,q_dot_cost_KE)
-fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\t\t\t\t (J)\n',KE_cost_vel,KE_cost_KE)
+fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\n',q_dot_cost_vel,q_dot_cost_KE)
+fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\n\n',KE_cost_vel,KE_cost_KE)
 
 %% Functions
 
