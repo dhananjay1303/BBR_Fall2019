@@ -47,7 +47,9 @@ z0 = -lh*cos(qh_0) - lk*cos(qh_0-qk_0) - la*cos(qh_0-qk_0+qa_0);
 
 %Comfortable Leg Positions
 qstar = deg2rad([0;10;90]);
-t = 0:0.001:timex(end);
+t_step = 0.001;
+t_span = 0:t_step:timex(end);
+% t_span = [0 timex(end)];
 
 count = 4;
 bigCount = 0;
@@ -55,39 +57,66 @@ bigCount = 0;
 % Run ODE solver for desired trajectory
 [TOUT_END, ENDPOINT] = ode45(@v, [0 timex(end)], [x0;z0]);
 
-%% Minimum Joint Velocity Squared
+%% Case 1 : Minimum Joint Velocity Squared
 
-[TOUT_JOINT_VEL, JOINTSPACE_VEL] = ode45(@state_deriv_vel,[0 timex(end)],[qh_0;qk_0;qa_0]);
+[TOUT_JOINT_VEL, JOINTSPACE_VEL] = ode45(@state_deriv_vel,t_span,[qh_0;qk_0;qa_0]);
 
 figure(1)
 plot(ENDPOINT(:,1),ENDPOINT(:,2)) %Plot desired trajectory
-drawnow
+%drawnow
 hold on
 
 for i = 1:length(TOUT_JOINT_VEL)
     plotLeg(JOINTSPACE_VEL(i,:))  %Plot leg position over time
     if i > 1
-        pause(TOUT_JOINT_VEL(i) - TOUT_JOINT_VEL(i-1))
+        %pause(TOUT_JOINT_VEL(i) - TOUT_JOINT_VEL(i-1))
     end
 end
 
-%% Minimum Kinetic Energy
+%% Case 2 : Minimum Kinetic Energy
 
-[TOUT_JOINT_KE, JOINTSPACE_KE] = ode45(@state_deriv_KE,[0 timex(end)],[qh_0;qk_0;qa_0]);
+[TOUT_JOINT_KE, JOINTSPACE_KE] = ode45(@state_deriv_KE,t_span,[qh_0;qk_0;qa_0]);
 
 figure(2)
 plot(ENDPOINT(:,1),ENDPOINT(:,2)) %Plot desired trajectory
-drawnow limitrate
+%drawnow limitrate
 hold on
 
 for i = 1:2:length(TOUT_JOINT_KE)
     plotLeg(JOINTSPACE_KE(i,:))   %Plot leg position over time
     if i > 1
-        pause(TOUT_JOINT_KE(i) - TOUT_JOINT_KE(i-1))
+        %pause(TOUT_JOINT_KE(i) - TOUT_JOINT_KE(i-1))
     end
 end
 
-%% Joint Velcotiy Plot (both cases)
+%% Case 3 : Minimum Joint Jerk
+
+qh = [-0.087;0.08;0.145;0.3146;0.3259;0.3308];
+qk = [0.1745;0.79;0.895;0.4295;0.1456;0.0685];
+qa = [1.309;1.64;1.67;1.56;1.311;0.9407];
+t = [0;0.1924;0.2388;0.468;0.5643;0.6188];
+
+qh_fit = fit(t,qh,'poly5');
+qk_fit = fit(t,qk,'poly5');
+qa_fit = fit(t,qa,'poly5');
+
+T = 0:t_step:timex(end);
+
+figure(3)
+plot(Xf(T),Zf(T)-0.92)
+hold on
+
+count = 0;
+for time = T
+    count = count + 1;
+    if count == 3
+        plotLeg([qh_fit(time);qk_fit(time);qa_fit(time)]);
+        %pause(0.03)
+        count = 0;
+    end
+end
+
+%% Joint Velcotiy Cost Plot
 
 q_dot_vel = zeros(3,length(TOUT_JOINT_VEL));
 q_dot_KE = zeros(3,length(TOUT_JOINT_KE));
@@ -102,26 +131,33 @@ for i = 1:length(TOUT_JOINT_KE)
     q_dot_KE(:,i) = state_deriv_KE(TOUT_JOINT_KE(i), transpose(JOINTSPACE_KE(i,:)));
 end
 
+qh_dot_jerk = differentiate(qh_fit,T);
+qk_dot_jerk = differentiate(qk_fit,T);
+qa_dot_jerk = differentiate(qa_fit,T);
+
 q_dot_cost_vel = sum(sum(q_dot_vel.^2))/length(q_dot_vel);
-q_dot_cost_KE  = sum(sum(q_dot_KE .^2))/length(q_dot_KE );
+q_dot_cost_KE  = sum(sum(q_dot_KE.^2))/length(q_dot_KE );
+q_dot_cost_jerk = sum(qh_dot_jerk.^2 + qk_dot_jerk.^2 + qa_dot_jerk.^2)/length(qh_dot_jerk);
 
 %Plot on the same figure for comparison
-figure(3)
-plot(TOUT_JOINT_VEL,q_dot_vel(1,:).^2 + q_dot_vel(2,:).^2 + q_dot_vel(3,:).^2)
+figure(4)
 hold on
+plot(TOUT_JOINT_VEL,q_dot_vel(1,:).^2 + q_dot_vel(2,:).^2 + q_dot_vel(3,:).^2)
 plot(TOUT_JOINT_KE, q_dot_KE(1,:).^2 + q_dot_KE(2,:).^2 + q_dot_KE(3,:).^2)
-max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
-xlim([0 max_time])
-plot([0 max_time],[0 0],'k')
-legend('Vel','KE')
+plot(T',qh_dot_jerk.^2 + qk_dot_jerk.^2 + qa_dot_jerk.^2)
+legend('Minimum Velocity','Minimum Kinetic Energy','Minimum Jerk')
 ylabel('Joint Velocity Squared [(°/s)^2]')
 xlabel('Time')
+title('Joint Velocity Cost over Time')
+max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
+xlim([0 max_time])
 grid on
 
-%% Kinetic Energy Plot (both cases)
+%% Kinetic Energy Plot
 
 kinetic_vel = zeros(1,length(TOUT_JOINT_VEL));
 kinetic_KE = zeros(1,length(TOUT_JOINT_KE));
+kinetic_jerk = zeros(1,length(T));
 
 for i = 1:length(TOUT_JOINT_VEL)
     %Solve for kinetic energy in the minimum joint velocity case
@@ -135,25 +171,61 @@ for i = 1:length(TOUT_JOINT_KE)
     kinetic_KE(i) = (1/2)*transpose(q_dot)*H(JOINTSPACE_KE(i,:))*q_dot;
 end
 
+for i = 1:length(T)
+    %Solve for kinetic energy in the minimum jerk case
+    q_dot = [qh_dot_jerk(i);qk_dot_jerk(i);qa_dot_jerk(i)];
+    q = [qh_fit(T(i));qk_fit(T(i));qa_fit(T(i))];
+    kinetic_jerk(i) = (1/2)*transpose(q_dot)*H(q)*q_dot;
+end
+
 %Plot on the same figure for comparison
-figure(4)
-plot(TOUT_JOINT_VEL,kinetic_vel,'r--')
+figure(5)
 hold on
-plot(TOUT_JOINT_KE, kinetic_KE, 'r')
+plot(TOUT_JOINT_VEL,kinetic_vel)
+plot(TOUT_JOINT_KE, kinetic_KE)
+plot(T',kinetic_jerk)
+
 max_time = max(max(TOUT_JOINT_VEL),max(TOUT_JOINT_KE));
 xlim([0 max_time])
 plot([0 max_time],[0 0],'k')
 grid on
-legend('Min Velocity','Min KE')
+xlabel('Time (s)')
+ylabel('Kinetic Energy Cost (J)')
+title('Kinetic Energy over Time')
+legend('Minimum Velocity','Minimum Kinetic Energy','Minimum Jerk')
 
 KE_cost_vel = sum(kinetic_vel)/length(kinetic_vel);
 KE_cost_KE  = sum(kinetic_KE )/length(kinetic_KE );
+KE_cost_jerk = sum(kinetic_jerk)/length(kinetic_jerk);
 
-fprintf('\n\t\t\t\t\tMinimum Velocity\tMinimum Kinetic Energy\n')
-fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\n',q_dot_cost_vel,q_dot_cost_KE)
-fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\n\n',KE_cost_vel,KE_cost_KE)
+%% Jerk Cost Plot
 
-%% Functions
+qh_fit_vel = fit(TOUT_JOINT_VEL,JOINTSPACE_VEL(:,1),'smoothingspline');
+qk_fit_vel = fit(TOUT_JOINT_VEL,JOINTSPACE_VEL(:,2),'smoothingspline');
+qa_fit_vel = fit(TOUT_JOINT_VEL,JOINTSPACE_VEL(:,3),'smoothingspline');
+
+jerk_cost_vel = plotJerk(qh_fit_vel,qk_fit_vel,qa_fit_vel,TOUT_JOINT_VEL,1)/length(TOUT_JOINT_VEL);
+
+qh_fit_KE = fit(TOUT_JOINT_KE,JOINTSPACE_KE(:,1),'smoothingspline');
+qk_fit_KE = fit(TOUT_JOINT_KE,JOINTSPACE_KE(:,2),'smoothingspline');
+qa_fit_KE = fit(TOUT_JOINT_KE,JOINTSPACE_KE(:,3),'smoothingspline');
+
+jerk_cost_KE = plotJerk(qh_fit_KE,qk_fit_KE,qa_fit_KE,TOUT_JOINT_KE,1)/length(TOUT_JOINT_KE);
+
+jerk_cost_jerk = plotJerk(qh_fit,qk_fit,qa_fit,T,1)/length(T);
+
+legend('Minimum Velocity','Minimum Kinetic Energy','Minimum Jerk')
+
+%% Final Summary 
+
+fprintf('\n\t\t\t\t\tMinimum Velocity\tMinimum Kinetic Energy\tMinimum Jerk\n')
+fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\t\t\t\t %.2f\n',q_dot_cost_vel,q_dot_cost_KE,q_dot_cost_jerk)
+fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\t\t\t\t\t %.2f\n',KE_cost_vel,KE_cost_KE,KE_cost_jerk)
+fprintf('\tJerk Cost    \t\t %.2e \t\t\t   %.2e\t\t\t\t %.2e\n\n',jerk_cost_vel,jerk_cost_KE,jerk_cost_jerk)
+
+%% -- Functions -- %%
+
+%% Jacobian Matrix
 
 function J = Jacobian(q)
     qh = q(1); qk = q(2); qa = q(3);
@@ -168,6 +240,8 @@ function J = Jacobian(q)
     J(2,2) = -lh*sin(qh-qk) - la*sin(qh-qk+qa);
     J(2,3) = la*sin(qh-qk+qa);
 end
+
+%% Mass Matrix
 
 function massMat = H(q)
     qh = q(1); qk = q(2); qa = q(3);
@@ -189,14 +263,16 @@ function massMat = H(q)
     massMat(3,3) = Ia + Ma*lma^2;
 end
 
-%-- Experimental Velocity Data --%
+%% Experimental Velocity Data
+
 function velocity = v(t,~)
     global Xf Zf
     
     velocity = [differentiate(Xf,t); differentiate(Zf,t)];
 end
 
-%-- State Derivative: Minimum Joint Velocity --%
+%% State Derivative: Minimum Joint Velocity
+
 function q_dot = state_deriv_vel(t,q)
     
     global qstar Xf Zf
@@ -222,7 +298,8 @@ function q_dot = state_deriv_vel(t,q)
     
 end
 
-%-- State Derivative: Minimum Kinetic Energy --%
+%% State Derivative: Minimum Kinetic Energy
+
 function q_dot = state_deriv_KE(t,q)
     
     global qstar Xf Zf
@@ -235,7 +312,7 @@ function q_dot = state_deriv_KE(t,q)
     M = H(q);
     M_inv = inv(M);
     
-    J_pseudo = M_inv*JT*inv((J*M_inv*JT));
+    J_pseudo = M_inv*JT*inv(J*M_inv*JT);
     
     q_dot_1 = J_pseudo*xz_dot;
     
@@ -255,7 +332,8 @@ function q_dot = state_deriv_KE(t,q)
     
 end
 
-%-- Plotting Arm Position --%
+%% Plotting Leg Position
+
 function plotLeg(q)
 
     global lh lk la
@@ -278,5 +356,5 @@ function plotLeg(q)
     y = ya - la*cos(qh-qk+qa);
 
     plot([xh xk xa x],[yh yk ya y],'color',0*[1 1 1])
-    drawnow
+    %drawnow
 end
