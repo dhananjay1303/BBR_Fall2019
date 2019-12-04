@@ -47,7 +47,7 @@ z0 = -lh*cos(qh_0) - lk*cos(qh_0-qk_0) - la*cos(qh_0-qk_0+qa_0);
 
 %Comfortable Leg Positions
 qstar = deg2rad([0;10;90]);
-t_step = 0.001;
+t_step = 0.01;
 t_span = 0:t_step:timex(end);
 % t_span = [0 timex(end)];
 
@@ -65,6 +65,9 @@ figure(1)
 plot(ENDPOINT(:,1),ENDPOINT(:,2)) %Plot desired trajectory
 %drawnow
 hold on
+axis equal
+set(gca,'XTick',[])
+set(gca,'YTick',[])
 
 for i = 1:length(TOUT_JOINT_VEL)
     plotLeg(JOINTSPACE_VEL(i,:))  %Plot leg position over time
@@ -81,6 +84,9 @@ figure(2)
 plot(ENDPOINT(:,1),ENDPOINT(:,2)) %Plot desired trajectory
 %drawnow limitrate
 hold on
+axis equal
+set(gca,'XTick',[])
+set(gca,'YTick',[])
 
 for i = 1:2:length(TOUT_JOINT_KE)
     plotLeg(JOINTSPACE_KE(i,:))   %Plot leg position over time
@@ -105,6 +111,9 @@ T = 0:t_step:timex(end);
 figure(3)
 plot(Xf(T),Zf(T)-0.92)
 hold on
+axis equal
+set(gca,'XTick',[])
+set(gca,'YTick',[])
 
 count = 0;
 for time = T
