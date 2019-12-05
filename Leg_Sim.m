@@ -232,6 +232,8 @@ fprintf('\tVelocity Cost\t\t %.2f \t\t\t\t   %.2f\t\t\t\t %.2f\n',q_dot_cost_vel
 fprintf('\tKE Cost      \t\t %.2f \t\t\t\t   %.2f\t\t\t\t\t %.2f\n',KE_cost_vel,KE_cost_KE,KE_cost_jerk)
 fprintf('\tJerk Cost    \t\t %.2e \t\t\t   %.2e\t\t\t\t %.2e\n\n',jerk_cost_vel,jerk_cost_KE,jerk_cost_jerk)
 
+
+save('SimulationResults.mat','TOUT_JOINT_VEL','JOINTSPACE_VEL','TOUT_JOINT_KE','JOINTSPACE_KE','qh_fit','qk_fit','qa_fit','-append')
 %% -- Functions -- %%
 
 %% Jacobian Matrix

@@ -7,7 +7,7 @@ Xf = fit(timex, 0.8*(x/100),'smoothingspline');
 Zf = fit(timez, 0.8*(z/100),'smoothingspline');
 
 %% Define MPC Object and Parameters
-t = linspace(0,timex(end),35); 
+t = linspace(0,timex(end),62); 
 
 %-- Parameter Definitions --%
 Ts = t(2) - t(1);           % Sample Time
@@ -28,8 +28,8 @@ LEG = nlmpc(3,2,3); %3 states, 2 outputs, 3 inputs
 
 %Model Definition
 LEG.Ts = Ts;
-LEG.ControlHorizon = 10;
-LEG.PredictionHorizon = 10;
+LEG.ControlHorizon = 8;
+LEG.PredictionHorizon = 8;
 LEG.Model = struct('StateFcn',@myStateFunction,'OutputFcn',@myOutputFunction,'NumberOfParameters',n_params);
 LEG.Jacobian = struct('OutputFcn',@Jacobian);
 LEG.Optimization = struct('CustomCostFcn',@myCostFunction,'ReplaceStandardCost',false);
@@ -50,7 +50,7 @@ LEG.States(3).Max = deg2rad(170);
 N = length(t);
 
 %Initial State
-state = deg2rad([-10;5;75]);
+state = deg2rad([-5;10;75]);
 qh_0 = state(1);
 qk_0 = state(2);
 qa_0 = state(3);
@@ -94,10 +94,10 @@ for i = 1:N
     
     %Live plot
     state_vector(:,i) = state';
-%     output = myOutputFunction(state,0,0,0,leg_length,0);
-%     plot(ref_point(1,1),ref_point(1,2),'cx')
-%     plot(output(1),output(2),'gd')
-%     drawnow
+    output = myOutputFunction(state,0,0,0,leg_length,0);
+    plot(ref_point(1,1),ref_point(1,2),'cx')
+    plot(output(1),output(2),'gd')
+    drawnow
 end
 
 %% Plot Results
@@ -109,6 +109,7 @@ for i = 1:length(state_vector)
     end
 end
 
+save('SimulationResults.mat','state_vector','-append')
 %% Functions
 
 function state_dot = myStateFunction(~,u,~,~,~,~)
